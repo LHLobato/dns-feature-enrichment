@@ -38,9 +38,9 @@ def get_country(domain: str) -> dict:
             code = response.country.iso_code or "UNKNOWN"
             countries.append(code)
         has_country = any(c != "UNKNOWN" for c in countries)
-        return {"domain": domain, "ips": ips, "countries": countries, "has_country": has_country}
+        return {"name": domain, "ips": ips, "countries": countries, "has_country": has_country}
     except Exception as e:
-        return {"domain": domain, "ips": [], "countries": ["UNKNOWN"], "has_country": False}
+        return {"name": domain, "ips": [], "countries": ["UNKNOWN"], "has_country": False}
     
     
 
