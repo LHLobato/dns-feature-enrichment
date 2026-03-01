@@ -1,5 +1,4 @@
-import socket
-import geoip2.database
+import socket 
 import dns.resolver
 import whois 
 from datetime import datetime
@@ -9,7 +8,8 @@ import random
 import pandas as pd
 import requests
 from whois.exceptions import WhoisDomainNotFoundError
-
+from geoip2fast import GeoIP2Fast
+import threading
 _reader = None
 
 def close_reader():
@@ -18,13 +18,11 @@ def close_reader():
         _reader.close()
         _reader = None
 
-import threading
-
 _local = threading.local()
 
 def get_reader():
     if not hasattr(_local, "reader"):
-        _local.reader = geoip2.database.Reader("GeoLite2-Country.mmdb")
+        _local.reader = GeoIP2Fast("geoip2fast-asn-ipv6.dat.gz")
     return _local.reader
 
 def get_country(domain: str) -> dict:
@@ -33,21 +31,22 @@ def get_country(domain: str) -> dict:
         ans = dns.resolver.resolve(domain, "A")
         ips = [r.address for r in ans]
         countries = []
+        asns = []
         for ip in ips:
-            response = reader.country(ip)
-            code = response.country.iso_code or "UNKNOWN"
+            result = reader.lookup(ip)
+            code = result.country_code or "UNKNOWN"
+            asn  = result.asn_name or "UNKNOWN"
             countries.append(code)
+            asns.append(asn)
         has_country = any(c != "UNKNOWN" for c in countries)
-        return {"name": domain, "ips": ips, "countries": countries, "has_country": has_country}
+        return {"name": domain, "ips": ips, "countries": countries, "asns": asns, "has_country": has_country}
     except Exception as e:
-        return {"name": domain, "ips": [], "countries": ["UNKNOWN"], "has_country": False}
-    
-    
+        return {"name": domain, "ips": [], "countries": ["UNKNOWN"], "asns": ["UNKNOWN"], "has_country": False}
 
 def whois_query(domain: str, retries: int = 3) -> dict:
     for attempt in range(retries):
         try:
-            time.sleep(random.uniform(1, 2))
+            time.sleep(random.uniform(0.5, 1))
             w = whois.whois(domain)
             creation_date   = w.creation_date[0]   if isinstance(w.creation_date, list)   else w.creation_date
             expiration_date = w.expiration_date[0] if isinstance(w.expiration_date, list) else w.expiration_date

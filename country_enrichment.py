@@ -4,14 +4,14 @@ import pandas as pd
 from common_functions import get_country
 
 
-df = pd.read_csv("dataset.csv")
+df = pd.read_csv("subset_50k.csv")
 
 dominios = df['name'].values
 
-with ThreadPoolExecutor(max_workers=20) as executor:
+with ThreadPoolExecutor(max_workers=100) as executor:
     resultados = list(executor.map(get_country, dominios))
 
 resultados = pd.DataFrame(resultados)
 resultados["countries"] = resultados['countries'].apply(str)
 df = df.merge(resultados, on="name", how="left")
-df.to_csv("100kcountry_enriched.csv", index=False)
+df.to_csv("50kcountry_enriched.csv", index=False)

@@ -1,1 +1,3 @@
-dataset.csv
+*.csv
+!subset_50k.csv
+__pycache__
