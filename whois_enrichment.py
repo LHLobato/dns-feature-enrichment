@@ -7,9 +7,9 @@ import time
 import random 
 from common_functions import get_whois_features
 
-df = pd.read_csv("subset50k.csv")
+df = pd.read_csv("subset_50k.csv")
 
-dominios = df['name'].values
+dominios = df['name'].values[:25000]
 resultados = []
 
 
@@ -20,6 +20,6 @@ resultados = pd.DataFrame(resultados)
 resultados["name"] = dominios
 
 df = df.merge(resultados, on="name", how="left")
-df.to_csv("50kcountry_enriched.csv", index=False)
+df.to_csv("50kwhois_enriched.csv", index=False)
 print("Salvo em 50kwhois_enriched.csv!")
 

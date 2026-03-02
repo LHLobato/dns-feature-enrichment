@@ -27,6 +27,7 @@ def get_reader():
 
 def get_country(domain: str) -> dict:
     try:
+        print(f"----Testing {domain}----")
         reader = get_reader()
         ans = dns.resolver.resolve(domain, "A")
         ips = [r.address for r in ans]
@@ -34,8 +35,8 @@ def get_country(domain: str) -> dict:
         asns = []
         for ip in ips:
             result = reader.lookup(ip)
-            code = result.country_code or "UNKNOWN"
-            asn  = result.asn_name or "UNKNOWN"
+            code = result.country_name or "UNKNOWN"
+            asn = result.asn_name or (str(result.asn) if hasattr(result, 'asn') and result.asn else "UNKNOWN")
             countries.append(code)
             asns.append(asn)
         has_country = any(c != "UNKNOWN" for c in countries)
@@ -121,7 +122,7 @@ def registro_br_query(domain: str) -> dict:
         return {"has_whois": False, "creation_date": None, "expiration_date": None, "update_date": None}
     
 def get_whois_features(domain: str) -> dict:
-
+    print(f"----Testing {domain}----")
     result = whois_query(domain)
     if result["has_whois"]:
         return result

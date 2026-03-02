@@ -8,7 +8,7 @@ df = pd.read_csv("subset_50k.csv")
 
 dominios = df['name'].values
 
-with ThreadPoolExecutor(max_workers=100) as executor:
+with ThreadPoolExecutor(max_workers=20) as executor:
     resultados = list(executor.map(get_country, dominios))
 
 resultados = pd.DataFrame(resultados)
