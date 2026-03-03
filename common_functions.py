@@ -1,5 +1,7 @@
+import re
 import socket 
 import dns.resolver
+import numpy as np
 import whois 
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
@@ -137,17 +139,79 @@ def get_whois_features(domain: str) -> dict:
     return result    
 
 def get_date_features(df: pd.DataFrame) -> pd.DataFrame:
-    def calcular(row):
-        if pd.notna(row["creation_date"]) and pd.notna(row["expiration_date"]):
-            row["lifetime"] = (row["expiration_date"] - row["creation_date"]).days / 365
-        else:
-            row["lifetime"] = None
-            
-        if pd.notna(row["creation_date"]) and pd.notna(row["update_date"]):
-            row["active_time"] = (row["update_date"] - row["creation_date"]).days / 365
-        else:
-            row["active_time"] = None
-            
-        return row
+    for col in ['creation_date', 'expiration_date', 'update_date']:
+        df[col] = pd.to_datetime(df[col], errors='coerce', utc=True)
     
-    return df.apply(calcular, axis=1)
+    df['lifetime'] = (df['expiration_date'] - df['creation_date']).dt.days / 365
+    df['active_time'] = (df['update_date'] - df['creation_date']).dt.days / 365
+    
+    return df
+
+
+def shannon_entropy(s: str) -> float:
+    if not s: return 0.0
+    _, counts = np.unique(list(s), return_counts=True)
+    prob = counts / len(s)
+    return -np.sum(prob * np.log2(prob))
+
+def vowel_ratio(s: str) -> float:
+    s = re.sub(r'[^a-z]', '', s.lower())
+    if not s: return 0.0
+    vowels = sum(ch in 'aeiou' for ch in s)
+    return vowels / len(s) if len(s) > 0 else 0.0
+
+def digit_ratio(s: str) -> float:
+    if not s: return 0.0
+    digits = sum(ch.isdigit() for ch in s)
+    return digits / len(s) if len(s) > 0 else 0.0
+
+def consonant_ratio(s: str) -> float:
+    s = re.sub(r'[^a-z]', '', s.lower())
+    if not s: return 0.0
+    consonants = sum(ch not in 'aeiou' for ch in s)
+    return consonants / len(s) if len(s) > 0 else 0.0
+
+def special_char_ratio(s: str) -> float:
+    if not s: return 0.0
+    specials = sum(ch in '-_.' for ch in s)
+    return specials / len(s) if len(s) > 0 else 0.0
+
+def extract_lexical_features(domain: str) -> list:
+    domain_original = str(domain).lower().strip() 
+    
+    if not domain_original or domain_original == 'nan':
+        return [0.0] * 13 # Corrigido para 13 (tamanho real do vetor)
+        
+    domain_no_www = re.sub(r'^www\.', '', domain_original)
+
+    consonants = re.findall(r'[^aeiou\d\W_]+', domain_original)
+    max_consonant_seq = max(len(s) for s in consonants) if consonants else 0
+    digits_seq = re.findall(r'\d+', domain_original)
+    max_digit_seq = max(len(s) for s in digits_seq) if digits_seq else 0
+    unique_char_ratio = len(set(domain_original)) / len(domain_original)
+
+    return [
+        float(len(domain_original)),
+        float(sum(c.isdigit() for c in domain_original)),
+        digit_ratio(domain_original),
+        vowel_ratio(domain_original),
+        consonant_ratio(domain_original),
+        special_char_ratio(domain_original),
+        shannon_entropy(domain_original),
+        float(domain_original.count('-')),
+       float(1 if domain_original[0].isdigit() else 0),
+        float(1 if re.search(r'(.)\1{2,}', domain_original) else 0),
+        float(max_consonant_seq),
+        float(max_digit_seq),
+        round(float(unique_char_ratio), 4)
+    ]
+
+def get_numeric_features(dataframe:pd.DataFrame) -> np.array: 
+    print("Calculando features léxicas...")
+    lex = np.array(dataframe['name'].apply(extract_lexical_features).to_list())
+    
+    dns_cols = [c for c in dataframe.columns if c not in ['malicious', 'name']]
+    dataframe[dns_cols] = dataframe[dns_cols].fillna(0)
+    dns = dataframe[dns_cols].values.astype(float)
+    
+    return np.hstack([lex, dns])
