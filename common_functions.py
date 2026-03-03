@@ -22,7 +22,7 @@ _local = threading.local()
 
 def get_reader():
     if not hasattr(_local, "reader"):
-        _local.reader = GeoIP2Fast("geoip2fast-asn-ipv6.dat.gz")
+        _local.reader = GeoIP2Fast(geoip2fast_data_file="geoip2fast-asn-ipv6.dat.gz")
     return _local.reader
 
 def get_country(domain: str) -> dict:

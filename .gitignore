@@ -1,3 +1,5 @@
 *.csv
 !subset_50k.csv
+!50kcountry_enriched.csv
+!whois-part2.csv
 __pycache__
