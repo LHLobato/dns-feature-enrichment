@@ -1,0 +1,9 @@
+Experimento: teste_mlp
+Melhor época (val): 50  |  Val Acc: 0.8848
+
+Test Loss : 0.2702
+Test Acc  : 0.8923
+Test Prec : 0.8823
+Test Rec  : 0.8923
+Test F1   : 0.8922
+Test AUC  : 0.9547

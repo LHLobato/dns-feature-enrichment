@@ -1,0 +1,12 @@
+Experimento : typo_baseline
+Features    : typo-only (ASCII ord, max_len=64)
+Arquitetura : input=64 | hidden=256 | layers=4 | dropout=0.2
+
+Melhor época (val): 28  |  Val Acc: 0.7329
+
+Test Loss : 0.5179
+Test Acc  : 0.7391
+Test Prec : 0.6761
+Test Rec  : 0.7391
+Test F1   : 0.7304
+Test AUC  : 0.8160

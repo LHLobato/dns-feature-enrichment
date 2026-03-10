@@ -1,0 +1,9 @@
+Experimento: exp
+Melhor época (val): 49  |  Val Acc: 0.7985
+
+Test Loss : 0.4105
+Test Acc  : 0.8071
+Test Prec : 0.7944
+Test Rec  : 0.8071
+Test F1   : 0.8070
+Test AUC  : 0.8902

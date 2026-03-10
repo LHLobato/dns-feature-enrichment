@@ -24,6 +24,8 @@ parser.add_argument('--whois', action='store_true', help='Usar whois-features')
 parser.add_argument('--country', action='store_true', help='Usar country-features')
 parser.add_argument('--exp', type=str, default='exp', help='Nome do experimento')
 parser.add_argument("--random_state", type=int, default=42, help="Seed da divisão de treino")
+parser.add_argument("--scores", action="store_true", help='Usar scores gerados')
+parser.add_argument("--datefeatures", action="store_true", help="Usar features de data")
 parser.add_argument('--model', type=str, default='xgb', 
                     choices=['xgb', 'rf', 'lr', 'svm'], 
                     help='Modelo: xgb (XGBoost), rf (Random Forest), lr (Logistic Regression), svm (Linear SVM)')
@@ -37,7 +39,10 @@ df = pd.read_csv("subset_50k.csv", index_col=False)
 if args.whois: 
     df_whois = pd.read_csv("whois-final.csv", index_col=False)
     df_whois = get_date_features(df_whois)
-    df = df.merge(df_whois[['name', 'lifetime', 'active_time', 'has_whois']], on='name', how='left')
+    df = df.merge(df_whois[['name', 'has_whois']], on='name', how='left') 
+    
+    if args.datefeatures:    
+        df = df.merge(df_whois[['name', 'lifetime', 'active_time', 'has_whois']], on='name', how='left') 
 
 
 if args.country: 
@@ -45,8 +50,10 @@ if args.country:
     for col in ["ips", "countries", "asns"]:
         df_country[col] = df_country[col].apply(lambda x: ast.literal_eval(x) if pd.notna(x) and x.startswith('[') else [])
     
-
-    df = df.merge(df_country[['name', 'has_country', 'countries', 'asns']], on='name', how='left')
+    df = df.merge(df_country[['name', 'has_country']], on='name', how='left') 
+    
+    if args.scores:
+        df = df.merge(df_country[['name', 'countries', 'asns', 'has_country']], on='name', how='left')  
 
 labels = df['malicious'].values
 df_train, df_rest, y_train, y_rest = train_test_split(
@@ -57,7 +64,7 @@ df_val, df_test, y_val, y_test = train_test_split(
     df_rest, y_rest, test_size=0.50, stratify=y_rest, random_state=args.random_state
 )
 
-if args.country:
+if args.scores:
     print("Calculando rankings de reputação baseados apenas no treino...")
     
     df_train_exp = df_train.explode('countries')
@@ -83,7 +90,7 @@ if args.country:
     df_train = df_train.drop(columns=['countries', 'asns'])
     df_test = df_test.drop(columns=['countries', 'asns'])
 
-if args.whois: 
+if args.datefeatures: 
     lifetime_mean = df_train['lifetime'].mean()
     active_mean = df_train['active_time'].mean()
     df_train['lifetime'] = df_train['lifetime'].fillna(lifetime_mean)

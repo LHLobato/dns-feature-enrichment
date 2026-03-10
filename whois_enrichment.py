@@ -1,15 +1,14 @@
 import whois 
-from datetime import datetime
-import csv
+from csv
 import pandas as pd 
 from concurrent.futures import ThreadPoolExecutor
 import time
 import random 
 from common_functions import get_whois_features
 
-df = pd.read_csv("subset_50k.csv")
-
-dominios = df['name'].values[:25000]
+df = pd.read_csv("dataset.csv")
+df = df[:232839]
+dominios = df['name'].values
 resultados = []
 
 
@@ -20,6 +19,6 @@ resultados = pd.DataFrame(resultados)
 resultados["name"] = dominios
 
 df = df.merge(resultados, on="name", how="left")
-df.to_csv("50kwhois_enriched.csv", index=False)
-print("Salvo em 50kwhois_enriched.csv!")
+df.to_csv("part1-whois-enriched.csv", index=False)
+print("Salvo em part1-whois-enriched.csv!")
 
