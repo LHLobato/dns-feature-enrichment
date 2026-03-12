@@ -1,5 +1,5 @@
 import whois 
-from csv
+import csv
 import pandas as pd 
 from concurrent.futures import ThreadPoolExecutor
 import time
