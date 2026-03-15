@@ -2,7 +2,7 @@
 !subset_50k.csv
 !50kcountry_enriched.csv
 !whois-final.csv
-!joblib
+*.joblib
 !countrytable.csv
 !asntable.csv
 __pycache__

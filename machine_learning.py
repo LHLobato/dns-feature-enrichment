@@ -5,10 +5,13 @@ import os
 import joblib
 from matplotlib import pyplot as plt
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.decomposition import TruncatedSVD
+from sklearn.ensemble import RandomForestClassifier, StackingClassifier, VotingClassifier
 from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import classification_report, roc_auc_score
 from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler
 from xgboost import XGBClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -26,14 +29,15 @@ parser.add_argument('--exp', type=str, default='exp', help='Nome do experimento'
 parser.add_argument("--random_state", type=int, default=42, help="Seed da divisão de treino")
 parser.add_argument("--scores", action="store_true", help='Usar scores gerados')
 parser.add_argument("--datefeatures", action="store_true", help="Usar features de data")
+parser.add_argument("--ensemblepath", type=str, help="Caminho para o ensemble")
+parser.add_argument("--ensemblemode", type=str, help="Voting ou Stacking")
 parser.add_argument('--model', type=str, default='xgb', 
-                    choices=['xgb', 'rf', 'lr', 'svm'], 
+                    choices=['xgb', 'rf', 'lr', 'svm', 'ensemble', 'knn', 'svd'], 
+                    
                     help='Modelo: xgb (XGBoost), rf (Random Forest), lr (Logistic Regression), svm (Linear SVM)')
 args = parser.parse_args()
 
-
-
-df = pd.read_csv("subset_50k.csv", index_col=False)
+df = pd.read_csv("dataset.csv", index_col=False)
 
 
 if args.whois: 
@@ -46,7 +50,7 @@ if args.whois:
 
 
 if args.country: 
-    df_country = pd.read_csv("50kcountry_enriched.csv", index_col=False)
+    df_country = pd.read_csv("460k_countryenriched.csv", index_col=False)
     for col in ["ips", "countries", "asns"]:
         df_country[col] = df_country[col].apply(lambda x: ast.literal_eval(x) if pd.notna(x) and x.startswith('[') else [])
     
@@ -129,45 +133,96 @@ models = {
         n_estimators=500, max_depth=15, min_samples_split=5,
         class_weight='balanced', random_state=args.random_state, n_jobs=-1
     ),
-    # SGD com loss='log_loss' equivale a Regressão Logística
+
     'lr': SGDClassifier(
         loss='log_loss', penalty='l2', max_iter=2000, 
         class_weight='balanced', random_state=args.random_state, n_jobs=-1
     ),
-    # SGD com loss='hinge' equivale a SVM Linear
+
     'svm': SGDClassifier(
-        loss='hinge', penalty='l2', max_iter=2000, 
+        loss='modified_huber', penalty='l2', max_iter=2000, 
         class_weight='balanced', random_state=args.random_state, n_jobs=-1
-    )
+    ), 
+    'knn': KNeighborsClassifier(
+        n_neighbors=5, 
+        weights='distance', 
+        algorithm='auto',
+        leaf_size=100,
+        n_jobs=-1         
+    ),
+    'svd': Pipeline([
+        ('svd', TruncatedSVD(n_components=44, random_state=args.random_state)),
+        ('clf', SGDClassifier(
+            loss='modified_huber', 
+            class_weight='balanced', 
+            random_state=args.random_state, 
+            n_jobs=-1
+        ))
+    ])
+
 }
 
-selected_model = models[args.model]
+if args.model == "ensemble":
+    with open(args.ensemblepath, "r") as file:
+        ensemble_components = [l.strip() for l in file if l.strip()]
+    
+    if args.ensemblemode == "voting":
+        selected_classifier = VotingClassifier(estimators=[(comp, models[comp]) for comp in ensemble_components], voting='hard', n_jobs=1)
+    else:
+        final_mdl =  RandomForestClassifier(
+            n_estimators=100,      
+            n_jobs=-1,             
+            random_state=42,       
+            class_weight='balanced' 
+        )
+    
+        selected_classifier = StackingClassifier(estimators=[(comp, models[comp]) for comp in ensemble_components], final_estimator=final_mdl,
+    cv=5, passthrough=True)  
+else: 
+    selected_classifier = models[args.model]
 
-# --- Escalonamento (Obrigatório para LR e SVM) ---
+
 if args.model in ['lr', 'svm']:
     print(f"Escalonando dados para {args.model.upper()}...")
     scaler = MinMaxScaler()
-    # Para matrizes esparsas (TF-IDF), o fit_transform funciona direto no hstack
+
     X_train_final = scaler.fit_transform(X_train_final)
     X_test_final = scaler.transform(X_test_final)
     joblib.dump(scaler, f"./joblib/scaler-{args.exp}.joblib")
 
 print(f"Treinando o modelo: {args.model.upper()}...")
-selected_model.fit(X_train_final, y_train)
+selected_classifier.fit(X_train_final, y_train)
+
+y_prob = selected_classifier.predict_proba(X_test_final)[:, 1]
+y_pred = selected_classifier.predict(X_test_final)
+
+report = classification_report(y_test, y_pred, output_dict=True)
+auc_score = roc_auc_score(y_test, y_pred)
+
+metrics_data = {
+    "model": args.exp,
+    "accuracy": report["accuracy"],
+    "avg_precision": report["macro avg"]["precision"],
+    "avg_recall": report["macro avg"]["recall"],
+    "avg_f1-score": report["macro avg"]["f1-score"],
+    "auc_roc": auc_score
+}
+
+df_new_log = pd.DataFrame([metrics_data])
+
+log_path = "./logs/experiments_results.csv"
+os.makedirs("./logs/", exist_ok=True)
 
 
-y_prob = selected_model.predict_proba(X_test_final)[:, 1]
-y_pred = selected_model.predict(X_test_final)
+if not os.path.isfile(log_path):
 
-auc_score = roc_auc_score(y_test, y_prob)
-report = classification_report(y_test, y_pred)
+    df_new_log.to_csv(log_path, index=False)
+    print(f"\nArquivo de log criado: {log_path}")
+else:
 
-print(f"\nROC AUC Final: {auc_score:.4f}")
-print(report)
+    df_new_log.to_csv(log_path, mode='a', header=False, index=False)
+    print(f"\nMétricas anexadas ao log: {log_path}")
 
-os.makedirs("./logs/",exist_ok=True)
-with open(f"./logs/{args.exp}-relatory.txt", "w") as f:
-    f.write(f"ROC AUC: {auc_score:.4f}\n")
-    f.write(report)
+print(df_new_log.to_string(index=False))
 
-joblib.dump(selected_model, f"./joblib/{args.exp}-{args.model}.joblib")
+joblib.dump(selected_classifier, f"./joblib/{args.exp}-{args.model}.joblib")
